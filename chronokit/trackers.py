@@ -1,3 +1,4 @@
+from pathlib import Path
 import functools, inspect, time, warnings
 from typing import Any, Callable, Optional, Union
 
@@ -24,22 +25,23 @@ class TimeTracker:
         function: Callable[['TimeTracker'], Any]
     ) -> Callable[['TimeTracker'], Any]:
         
-        def _get_block(
-            line,
-            local,
-            reason
-        ):
+        def _save_block_log(
+            self: 'TimeTracker',
+            line: int,
+            local: Union[Path, str],
+            reason: str
+        ) -> None:
             warnings.warn_explicit(
-                message=f'{blocked_msg}, {reason}',
+                message=f'Blocked: {function.__qualname__}; {reason}',
                 category=UserWarning,
                 filename=local,
                 lineno=line
             )
             self.track_log['blocked'].append(
                 (
-                    frame_info[0], 
-                    frame_info[1],
-                    f'{blocked_msg}, Double call!'
+                    local, 
+                    line,
+                    f'Blocked: {function.__qualname__}; {reason}'
                 )
             )
 
@@ -53,22 +55,13 @@ class TimeTracker:
             frame_info = inspect.getframeinfo(
                 inspect.currentframe().f_back
             )
-            blocked_msg = f'Blocked: {function.__qualname__}'
-
             if function.__name__ == 'start':
                 if self.is_running:
-                    warnings.warn_explicit(
-                        message=f'{blocked_msg}, Double call!',
-                        category=UserWarning,
-                        filename=frame_info[0],
-                        lineno=frame_info[1]
-                    )
-                    self.track_log['blocked'].append(
-                        (
-                            frame_info[0], 
-                            frame_info[1],
-                            f'{blocked_msg}, Double call!'
-                        )
+                    _save_block_log(
+                        self=self,
+                        line=frame_info[1],
+                        local=frame_info[0],
+                        reason='Double call!'    
                     )
                 else:
                     self.is_running = True
@@ -76,18 +69,11 @@ class TimeTracker:
 
             elif function.__name__ == 'stop':
                 if not self.is_running:
-                    warnings.warn_explicit(
-                        message=f'{blocked_msg}, Double call!',
-                        category=UserWarning,
-                        filename=frame_info[0],
-                        lineno=frame_info[1]
-                    )
-                    self.track_log['blocked'].append(
-                        (
-                            frame_info[0], 
-                            frame_info[1],
-                            f'{blocked_msg}, Double call!'
-                        )
+                    _save_block_log(
+                        self=self,
+                        line=frame_info[1],
+                        local=frame_info[0],
+                        reason='Double call!'    
                     )
                 else:
                     self.is_running = False
@@ -95,21 +81,27 @@ class TimeTracker:
             
             elif function.__name__ == 'get_elapsed_time':
                 if not self.track_log['start']:
-                    warnings.warn_explicit(
-                        message=f"{blocked_msg}, The tracker hasn't started yet!",
-                        category=UserWarning,
-                        filename=frame_info[0],
-                        lineno=frame_info[1]
-                    )
-                    self.track_log['blocked'].append(
-                        (
-                            frame_info[0], 
-                            frame_info[1],
-                            f"{blocked_msg}, The tracker hasn't started yet!"
-                        )
+                    _save_block_log(
+                        self=self,
+                        line=frame_info[1],
+                        local=frame_info[0],
+                        reason="The tracker hasn't started yet!"    
                     )
                     return None
-
+                elif not self.track_log['stop']:
+                    _save_block_log(
+                        self=self,
+                        line=frame_info[1],
+                        local=frame_info[0],
+                        reason="The tracker hasn't been completed yet!"
+                    )
+                    return None
+                elif self.is_running:
+                    warnings.warn(
+                        message='Opened tracker. Only closed trackers will be calculated.',
+                        category=UserWarning
+                    )
+                    return function(self, *args, **kwargs)
         return wrapper
 
     @_bug_blocker
@@ -223,6 +215,9 @@ class ExecutionTimeTracker:
 
 a = TimeTracker()
 
+a.start()
 a.stop()
+a.start()
 
 print(a.get_elapsed_time())
+
