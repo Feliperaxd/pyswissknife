@@ -213,11 +213,6 @@ class ExecutionTimeTracker:
 
 
 
-a = TimeTracker()
+a = TimeTracker
 
 a.start()
-a.stop()
-a.start()
-
-print(a.get_elapsed_time())
-
