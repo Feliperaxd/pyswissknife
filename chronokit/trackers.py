@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import functools, inspect, time, warnings
 from typing import Any, Callable, Optional, Union
@@ -8,7 +9,7 @@ class TimeTracker:
 
     def __init__(
         self: 'TimeTracker',
-        name: Optional[str] = None
+        name: str
     ) -> None:
         
         self.name = name
@@ -20,6 +21,7 @@ class TimeTracker:
             'stop': [],
             'blocked': []
         }
+        self.file_name = f'chronodata_{self.name}.json'
 
     def _bug_blocker(
         function: Callable[['TimeTracker'], Any]
@@ -102,6 +104,9 @@ class TimeTracker:
                         category=UserWarning
                     )
                     return function(self, *args, **kwargs)
+                else:
+                    return function(self, *args, **kwargs)
+                
         return wrapper
 
     @_bug_blocker
@@ -134,42 +139,57 @@ class TimeTracker:
             self.track_log['start'][0]
         ) 
         if self.elapsed_time is None:
-                self.elapsed_time = (
-                    self.track_log['stop'][-1] - 
-                    self.track_log['start'][-1]
-                )
+            _elapsed_time = 0
+            
         start_log = self.track_log['start']
         stop_log = self.track_log['stop']
-
+        
         if self.is_running:
             start_log.pop()
 
         for start, stop in zip(start_log, stop_log):        
-            self.elapsed_time += stop - start
-    
+            _elapsed_time += stop - start
+        
+        self.elapsed_time = _elapsed_time
         return self.elapsed_time
     
-
-class TimeTrackers:
-
-    
-    def __init__(
-        self: 'TimeTrackers'
+    def save(
+        self: 'TimeTracker',
+        dir_path: Optional[Union[Path, str]] = None
     ) -> None:
         
-        self.timers = {}
-        self.start_time = None
-        self.end_time = None
+        data = {
+            'name': self.name,
+            'is_running': self.is_running,
+            'elapsed_time': self.elapsed_time,
+            'total_elapsed_time': self.total_elapsed_time,
+            'log': self.track_log
+        }
         
+        if dir_path is None: dir_path = self.file_name
+        else: dir_path = Path(dir_path) / self.file_name
+        
+        with open(dir_path, 'w+') as file:
+            json.dump(data, file)
 
-    def add(
-        self: 'TimeTrackers',
-        name: Optional[str] = None
+    def load(
+        self: 'TimeTracker',
+        dir_path: Optional[Union[Path, str]] = None
     ) -> None:
-        pass
+        
+        if dir_path is None: dir_path = self.file_name
+        else: dir_path = Path(dir_path) / self.file_name
 
-
-class ExecutionTimeTracker:
+        with open(dir_path, 'r') as file:
+            data = json.load(file)
+        
+        self.name = data['name']
+        self.is_running = data['is_running']
+        self.elapsed_time = data['elapsed_time']
+        self.total_elapsed_time = data['total_elapsed_time']
+        self.track_log = data['log']
+        
+class ExecutionTimeTracker(TimeTracker):
 
 
     def __init__(
@@ -192,9 +212,9 @@ class ExecutionTimeTracker:
         """
         
         self.function = function
-        self.start_time = None
-        self.end_time = None
-        self.elapsed_time = None
+        super().__init__(
+            name=function.__qualname__
+        )
 
     def __call__(
         self: 'ExecutionTimeTracker', 
@@ -202,17 +222,11 @@ class ExecutionTimeTracker:
         **kwargs: Any
     ) -> Any:
         
-        self.start_time = time.perf_counter()
+        self.start()
         self.func_out = self.function(
             *args, **kwargs
         )
-        self.end_time = time.perf_counter()
-        self.elapsed_time = self.end_time - self.start_time
-
+        self.stop()    
+    
         return self.func_out
 
-
-
-a = TimeTracker
-
-a.start()
