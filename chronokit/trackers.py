@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import functools, inspect, time, warnings
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 
 class TimeTracker:
@@ -12,27 +12,64 @@ class TimeTracker:
         name: str
     ) -> None:
         
+        """
+        This class is a useful tool for measuring how long 
+        it takes for a specific task to execute in Python!
+
+        Args:
+            - name (str): Name or ID for this tracker! 
+
+        Attributes:
+            - name (str): Name or ID for this tracker!
+            - is_running (bool): 'False' the timer has stopped, 'True' it's running!
+            - elapsed_time (float): The time from start to stop, excluding intervals between
+              stops and starts!
+            - total_elapsed_time (float): The time from the initial start to the final stop,
+              without excluding any stops!
+            - track_log (Dict): Used to store tracker data!
+                - start: Stores all start markers.
+                - stop: Stores all stop markers.
+                - blocked: Stores all blocked actions in the sequence of location, line, and reason.
+            - file_name (str): Name of the file where the data will be saved!
+        """
+
         self.name = name
         self.is_running = False
         self.elapsed_time = None
         self.total_elapsed_time = None
-        self.track_log = {
+        self.track_log: Dict = {
             'start': [],
             'stop': [],
             'blocked': []
         }
-        self.file_name = f'chronodata_{self.name}.json'
+        self.file_name: str = f'chronodata_{self.name}.json'
 
     def _bug_blocker(
         function: Callable[['TimeTracker'], Any]
     ) -> Callable[['TimeTracker'], Any]:
         
+        """
+        This is a private decorator, use it only to prevent and block possible problems 
+        in functions!
+        """
+
         def _save_block_log(
             self: 'TimeTracker',
             line: int,
             local: Union[Path, str],
             reason: str
         ) -> None:
+            
+            """
+            Use this to block and save to log!
+
+            Args:
+                - self: The class instance!
+                - line (int): Line where the action was blocked!
+                - local (Union[Path, str]): Local where the action was blocked!
+                - reason (str): Reason for blocking the action!
+            """
+
             warnings.warn_explicit(
                 message=f'Blocked: {function.__qualname__}; {reason}',
                 category=UserWarning,
@@ -114,6 +151,16 @@ class TimeTracker:
         self: 'TimeTracker'
     ) -> float:
         
+        """
+        Start the timer!
+
+        Args:
+            - self: The class instance!
+        
+        Returns:
+            - float: Time when the chronometer started!
+        """
+
         start_time = time.perf_counter()
         self.track_log['start'].append(start_time)
         
@@ -124,6 +171,16 @@ class TimeTracker:
         self: 'TimeTracker'
     ) -> float:
         
+        """
+        Stop or pause the timer!
+
+        Args:
+            - self: The class instance!
+        
+        Returns:
+            - float: Time when the chronometer stoped!
+        """
+
         stop_time = time.perf_counter()
         self.track_log['stop'].append(stop_time)
 
@@ -134,6 +191,17 @@ class TimeTracker:
         self: 'TimeTracker'
     ) -> Union[float, None]:
         
+        """
+        Calculates and obtains the elapsed time!
+
+        Args:
+            - self: The class instance!
+        
+        Returns:
+            - float: The time from start to stop, excluding intervals between stops and 
+            starts!
+        """
+
         self.total_elapsed_time = (
             self.track_log['stop'][-1] - 
             self.track_log['start'][0]
@@ -189,6 +257,8 @@ class TimeTracker:
         self.total_elapsed_time = data['total_elapsed_time']
         self.track_log = data['log']
         
+
+
 class ExecutionTimeTracker(TimeTracker):
 
 
@@ -230,3 +300,10 @@ class ExecutionTimeTracker(TimeTracker):
     
         return self.func_out
 
+b = TimeTracker('aasdsd')
+b.start()
+
+time.sleep(1)
+
+b.stop()
+print(b.get_elapsed_time())
